@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoMapper;
 using HouseReservationWebAPI.Data;
 using HouseReservationWebAPI.Models;
 using HouseReservationWebAPI.Models.DTO;
@@ -18,9 +19,12 @@ public class HouseReservationApiController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<HouseReservationApiController> _logger;
+    private readonly IMapper _mapper;
 
-    public HouseReservationApiController(ILogger<HouseReservationApiController> logger, ApplicationDbContext dbContext)
+    public HouseReservationApiController(ILogger<HouseReservationApiController> logger, 
+        ApplicationDbContext dbContext, IMapper mapper)
     {
+        _mapper = mapper;
         _logger = logger;
         _dbContext = dbContext;
     }
@@ -28,9 +32,10 @@ public class HouseReservationApiController : ControllerBase
     
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<IEnumerable<HouseDto>> GetHouses()
+    public async Task <ActionResult<IEnumerable<HouseDto>>> GetHousesAsync()
     {
-        return Ok(_dbContext.Houses.ToList());
+        IEnumerable<House> houses = await _dbContext.Houses.ToListAsync();
+        return Ok(_mapper.Map<List<HouseDto>>(houses));
     }
 
 
@@ -40,9 +45,9 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<HouseDto> GetHouse(int id)
+    public async Task <ActionResult<HouseDto>> GetHouseAsync(int id)
     {
-        var house = _dbContext.Houses.FirstOrDefault(u => u.Id == id);
+        var house = await _dbContext.Houses.FirstOrDefaultAsync(u => u.Id == id);
         if (id == 0)
         {
             _logger.LogError("Getting house with id: {Id} failed", id);
@@ -56,7 +61,7 @@ public class HouseReservationApiController : ControllerBase
         }
 
         ;
-        return Ok(house);
+        return Ok(_mapper.Map<HouseDto>(house));
     }
 
 
@@ -66,32 +71,21 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public ActionResult<HouseDto> CreateHouse([FromBody] HouseCreateDto houseDto)
+    public async Task<ActionResult<HouseDto>> CreateHouseAsync([FromBody] HouseCreateDto houseCreateDto)
     {
-        if (_dbContext.Houses.FirstOrDefault(u => u.Name.ToLower() == houseDto.Name.ToLower()) != null)
+        if (await _dbContext.Houses.FirstOrDefaultAsync(u => u.Name.ToLower() == houseCreateDto.Name.ToLower()) != null)
         {
             ModelState.AddModelError("AlreadyExistsError", "House with that name already exists!");
             return BadRequest(ModelState);
         }
 
-        if (houseDto == null)
+        if (houseCreateDto == null)
         {
-            return BadRequest(houseDto);
+            return BadRequest(houseCreateDto);
         }
-
-        House modelHouse = new House()
-        {
-            Amenity = houseDto.Amenity,
-            DetailedInfo = houseDto.DetailedInfo,
-            Name = houseDto.Name,
-            Occupancy = houseDto.Occupancy,
-            ChargeRate = houseDto.ChargeRate,
-            Area = houseDto.Area,
-            ImageUrl = houseDto.ImageUrl,
-        };
-
-        _dbContext.Houses.Add(modelHouse);
-        _dbContext.SaveChanges();
+        House modelHouse = _mapper.Map<House>(houseCreateDto);
+        await _dbContext.Houses.AddAsync(modelHouse);
+        await _dbContext.SaveChangesAsync();
 
         return CreatedAtRoute("GetHouse", new { id = modelHouse.Id }, modelHouse);
     }
@@ -103,21 +97,21 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [HttpDelete("{id:int}", Name = "DeleteHouse")]
-    public IActionResult DeleteHouse(int id)
+    public async Task <IActionResult> DeleteHouse(int id)
     {
         if (id == 0)
         {
             return BadRequest();
         }
 
-        var house = _dbContext.Houses.FirstOrDefault(u => u.Id == id);
+        var house = await _dbContext.Houses.FirstOrDefaultAsync(u => u.Id == id);
         if (house == null)
         {
             return NotFound();
         }
 
         _dbContext.Houses.Remove(house);
-        _dbContext.SaveChanges();
+        await _dbContext.SaveChangesAsync();
         return NoContent();
     }
 
@@ -127,25 +121,17 @@ public class HouseReservationApiController : ControllerBase
     [HttpPut("{id:int}", Name = "UpdateHouse")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public IActionResult UpdateHouse(int id, [FromBody] HouseUpdateDto houseDto)
+    public async Task<IActionResult> UpdateHouse(int id, [FromBody] HouseUpdateDto houseUpdateDto)
     {
-        if (houseDto == null || id != houseDto.Id)
+        if (houseUpdateDto == null || id != houseUpdateDto.Id)
         {
             return BadRequest();
         }
 
-        House modelHouse = new House()
-        {
-            Id = houseDto.Id,
-            Amenity = houseDto.Amenity,
-            DetailedInfo = houseDto.DetailedInfo,
-            Name = houseDto.Name,
-            Occupancy = houseDto.Occupancy,
-            ChargeRate = houseDto.ChargeRate,
-            Area = houseDto.Area,
-            ImageUrl = houseDto.ImageUrl,
-        };
+        House modelHouse = _mapper.Map<House>(houseUpdateDto);
+
         _dbContext.Update(modelHouse);
+        await _dbContext.SaveChangesAsync();
         return NoContent();
     }
 
@@ -155,26 +141,15 @@ public class HouseReservationApiController : ControllerBase
     [HttpPatch("{id:int}", Name = "UpdatePartialHouse")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public IActionResult UpdatePartialHouse(int id, JsonPatchDocument<HouseUpdateDto> patchDto)
+    public async Task<IActionResult> UpdatePartialHouse(int id, JsonPatchDocument<HouseUpdateDto> patchDto)
     {
         if (patchDto == null || id == 0)
         {
             return BadRequest();
         }
 
-        var house = _dbContext.Houses.AsNoTracking().FirstOrDefault(u => u.Id == id);
-
-        var modelHouseDto = new HouseUpdateDto()
-        {
-            Id = house.Id,
-            Amenity = house.Amenity,
-            DetailedInfo = house.DetailedInfo,
-            Name = house.Name,
-            Occupancy = house.Occupancy,
-            ChargeRate = house.ChargeRate,
-            Area = house.Area,
-            ImageUrl = house.ImageUrl,
-        };
+        var house = await _dbContext.Houses.AsNoTracking().FirstOrDefaultAsync( u => u.Id == id);
+        var modelHouseDto = _mapper.Map<HouseUpdateDto>(house);
 
         if (house == null)
         {
@@ -182,19 +157,10 @@ public class HouseReservationApiController : ControllerBase
         }
         patchDto.ApplyTo(modelHouseDto, ModelState);
 
-        House modelHouse = new House()
-        {
-            Id = modelHouseDto.Id,
-            Amenity = modelHouseDto.Amenity,
-            DetailedInfo = modelHouseDto.DetailedInfo,
-            Name = modelHouseDto.Name,
-            Occupancy = modelHouseDto.Occupancy,
-            ChargeRate = modelHouseDto.ChargeRate,
-            Area = modelHouseDto.Area,
-            ImageUrl = modelHouseDto.ImageUrl,
-        };
+        var modelHouse = _mapper.Map<House>(modelHouseDto);
+
         _dbContext.Houses.Update(modelHouse);
-        _dbContext.SaveChanges();
+        await _dbContext.SaveChangesAsync();
 
         return NoContent();
     }
