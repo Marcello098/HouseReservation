@@ -14,6 +14,14 @@ namespace HouseReservationWebAPI.Controllers;
 [ApiController]
 public class HouseReservationApiController : ControllerBase
 {
+
+    private readonly ILogger<HouseReservationApiController> _logger;
+    public HouseReservationApiController(ILogger<HouseReservationApiController> logger)
+    {
+        _logger = logger;
+    }
+    
+    
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<IEnumerable<HouseDTO>> GetHouses()
@@ -31,11 +39,13 @@ public class HouseReservationApiController : ControllerBase
         var house = HouseStore.HouseList.FirstOrDefault(u => u.Id == id);
         if (id == 0)
         {
+            _logger.LogError("Getting house with id: {Id} failed", id);
             return BadRequest();
         }
 
         if (house == null)
         {
+            _logger.LogError("Getting house with id: {Id} failed - Not Found", id);
             return NotFound();
         }
 
