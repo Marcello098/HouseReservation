@@ -4,9 +4,9 @@ namespace HouseReservationWebAPI.Data;
 
 public static class HouseStore
 {
-    public static List<HouseDTO> HouseList = new List<HouseDTO>
+    public static List<HouseDto> HouseList = new List<HouseDto>
     {
-        new HouseDTO { Id = 1, Name = "Pool View", Area = 100, Occupancy = 4},
-        new HouseDTO { Id = 2, Name = "Beach View", Area = 300, Occupancy = 3}
+        new HouseDto { Id = 1, Name = "Pool View", Area = 100, Occupancy = 4},
+        new HouseDto { Id = 2, Name = "Beach View", Area = 300, Occupancy = 3}
     };
 }

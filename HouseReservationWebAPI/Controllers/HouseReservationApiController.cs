@@ -8,6 +8,8 @@ using HouseReservationWebAPI.Models.DTO;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
 namespace HouseReservationWebAPI.Controllers;
 
 [Route("api/v1/HouseReservationAPI")]
@@ -26,7 +28,7 @@ public class HouseReservationApiController : ControllerBase
     
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<IEnumerable<HouseDTO>> GetHouses()
+    public ActionResult<IEnumerable<HouseDto>> GetHouses()
     {
         return Ok(_dbContext.Houses.ToList());
     }
@@ -38,7 +40,7 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<HouseDTO> GetHouse(int id)
+    public ActionResult<HouseDto> GetHouse(int id)
     {
         var house = _dbContext.Houses.FirstOrDefault(u => u.Id == id);
         if (id == 0)
@@ -64,7 +66,7 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public ActionResult<HouseDTO> CreateHouse([FromBody] HouseDTO houseDto)
+    public ActionResult<HouseDto> CreateHouse([FromBody] HouseCreateDto houseDto)
     {
         if (_dbContext.Houses.FirstOrDefault(u => u.Name.ToLower() == houseDto.Name.ToLower()) != null)
         {
@@ -77,14 +79,8 @@ public class HouseReservationApiController : ControllerBase
             return BadRequest(houseDto);
         }
 
-        if (houseDto.Id > 0)
-        {
-            return StatusCode(StatusCodes.Status500InternalServerError);
-        }
-
         House modelHouse = new House()
         {
-            Id = houseDto.Id,
             Amenity = houseDto.Amenity,
             DetailedInfo = houseDto.DetailedInfo,
             Name = houseDto.Name,
@@ -97,7 +93,7 @@ public class HouseReservationApiController : ControllerBase
         _dbContext.Houses.Add(modelHouse);
         _dbContext.SaveChanges();
 
-        return CreatedAtRoute("GetHouse", new { id = houseDto.Id }, houseDto);
+        return CreatedAtRoute("GetHouse", new { id = modelHouse.Id }, modelHouse);
     }
 
 
@@ -131,7 +127,7 @@ public class HouseReservationApiController : ControllerBase
     [HttpPut("{id:int}", Name = "UpdateHouse")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public IActionResult UpdateHouse(int id, [FromBody] HouseDTO houseDto)
+    public IActionResult UpdateHouse(int id, [FromBody] HouseUpdateDto houseDto)
     {
         if (houseDto == null || id != houseDto.Id)
         {
@@ -159,16 +155,16 @@ public class HouseReservationApiController : ControllerBase
     [HttpPatch("{id:int}", Name = "UpdatePartialHouse")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public IActionResult UpdatePartialHouse(int id, JsonPatchDocument<HouseDTO> patchDto)
+    public IActionResult UpdatePartialHouse(int id, JsonPatchDocument<HouseUpdateDto> patchDto)
     {
         if (patchDto == null || id == 0)
         {
             return BadRequest();
         }
 
-        var house = _dbContext.Houses.FirstOrDefault(u => u.Id == id);
+        var house = _dbContext.Houses.AsNoTracking().FirstOrDefault(u => u.Id == id);
 
-        var modelHouseDto = new HouseDTO()
+        var modelHouseDto = new HouseUpdateDto()
         {
             Id = house.Id,
             Amenity = house.Amenity,
