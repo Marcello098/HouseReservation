@@ -14,11 +14,13 @@ namespace HouseReservationWebAPI.Controllers;
 [ApiController]
 public class HouseReservationApiController : ControllerBase
 {
-
+    private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<HouseReservationApiController> _logger;
-    public HouseReservationApiController(ILogger<HouseReservationApiController> logger)
+
+    public HouseReservationApiController(ILogger<HouseReservationApiController> logger, ApplicationDbContext dbContext)
     {
         _logger = logger;
+        _dbContext = dbContext;
     }
     
     
@@ -26,8 +28,10 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<IEnumerable<HouseDTO>> GetHouses()
     {
-        return Ok(HouseStore.HouseList);
+        return Ok(_dbContext.Houses.ToList());
     }
+
+
 
 
     [HttpGet("{id:int}", Name = "GetHouse")]
@@ -36,7 +40,7 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<HouseDTO> GetHouse(int id)
     {
-        var house = HouseStore.HouseList.FirstOrDefault(u => u.Id == id);
+        var house = _dbContext.Houses.FirstOrDefault(u => u.Id == id);
         if (id == 0)
         {
             _logger.LogError("Getting house with id: {Id} failed", id);
@@ -54,13 +58,15 @@ public class HouseReservationApiController : ControllerBase
     }
 
 
+
+
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public ActionResult<HouseDTO> CreateHouse([FromBody] HouseDTO houseDto)
     {
-        if (HouseStore.HouseList.FirstOrDefault(u => u.Name.ToLower() == houseDto.Name.ToLower()) != null)
+        if (_dbContext.Houses.FirstOrDefault(u => u.Name.ToLower() == houseDto.Name.ToLower()) != null)
         {
             ModelState.AddModelError("AlreadyExistsError", "House with that name already exists!");
             return BadRequest(ModelState);
@@ -76,11 +82,25 @@ public class HouseReservationApiController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError);
         }
 
-        houseDto.Id = HouseStore.HouseList.OrderByDescending(u => u.Id).FirstOrDefault().Id + 1;
-        HouseStore.HouseList.Add(houseDto);
+        House modelHouse = new House()
+        {
+            Id = houseDto.Id,
+            Amenity = houseDto.Amenity,
+            DetailedInfo = houseDto.DetailedInfo,
+            Name = houseDto.Name,
+            Occupancy = houseDto.Occupancy,
+            ChargeRate = houseDto.ChargeRate,
+            Area = houseDto.Area,
+            ImageUrl = houseDto.ImageUrl,
+        };
+
+        _dbContext.Houses.Add(modelHouse);
+        _dbContext.SaveChanges();
 
         return CreatedAtRoute("GetHouse", new { id = houseDto.Id }, houseDto);
     }
+
+
 
 
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -94,15 +114,18 @@ public class HouseReservationApiController : ControllerBase
             return BadRequest();
         }
 
-        var house = HouseStore.HouseList.FirstOrDefault(u => u.Id == id);
+        var house = _dbContext.Houses.FirstOrDefault(u => u.Id == id);
         if (house == null)
         {
             return NotFound();
         }
 
-        HouseStore.HouseList.Remove(house);
+        _dbContext.Houses.Remove(house);
+        _dbContext.SaveChanges();
         return NoContent();
     }
+
+
 
 
     [HttpPut("{id:int}", Name = "UpdateHouse")]
@@ -115,13 +138,22 @@ public class HouseReservationApiController : ControllerBase
             return BadRequest();
         }
 
-        var house = HouseStore.HouseList.FirstOrDefault(u => u.Id == id);
-        house.Name = houseDto.Name;
-        house.Area = houseDto.Area;
-        house.Occupancy = houseDto.Occupancy;
-
+        House modelHouse = new House()
+        {
+            Id = houseDto.Id,
+            Amenity = houseDto.Amenity,
+            DetailedInfo = houseDto.DetailedInfo,
+            Name = houseDto.Name,
+            Occupancy = houseDto.Occupancy,
+            ChargeRate = houseDto.ChargeRate,
+            Area = houseDto.Area,
+            ImageUrl = houseDto.ImageUrl,
+        };
+        _dbContext.Update(modelHouse);
         return NoContent();
     }
+
+
 
 
     [HttpPatch("{id:int}", Name = "UpdatePartialHouse")]
@@ -134,18 +166,45 @@ public class HouseReservationApiController : ControllerBase
             return BadRequest();
         }
 
-        var house = HouseStore.HouseList.FirstOrDefault(u => u.Id == id);
+        var house = _dbContext.Houses.FirstOrDefault(u => u.Id == id);
+
+        var modelHouseDto = new HouseDTO()
+        {
+            Id = house.Id,
+            Amenity = house.Amenity,
+            DetailedInfo = house.DetailedInfo,
+            Name = house.Name,
+            Occupancy = house.Occupancy,
+            ChargeRate = house.ChargeRate,
+            Area = house.Area,
+            ImageUrl = house.ImageUrl,
+        };
+
         if (house == null)
         {
             return BadRequest();
         }
-        patchDto.ApplyTo(house, ModelState);
-        if (!ModelState.IsValid)
+        patchDto.ApplyTo(modelHouseDto, ModelState);
+
+        House modelHouse = new House()
         {
-            return BadRequest(ModelState);
-        }
+            Id = modelHouseDto.Id,
+            Amenity = modelHouseDto.Amenity,
+            DetailedInfo = modelHouseDto.DetailedInfo,
+            Name = modelHouseDto.Name,
+            Occupancy = modelHouseDto.Occupancy,
+            ChargeRate = modelHouseDto.ChargeRate,
+            Area = modelHouseDto.Area,
+            ImageUrl = modelHouseDto.ImageUrl,
+        };
+        _dbContext.Houses.Update(modelHouse);
+        _dbContext.SaveChanges();
+
         return NoContent();
     }
+    
+    
+    
 
 }
 
