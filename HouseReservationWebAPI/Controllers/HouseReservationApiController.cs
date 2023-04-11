@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using AutoMapper;
 using HouseReservationWebAPI.Data;
@@ -21,6 +22,7 @@ public class HouseReservationApiController : ControllerBase
     private readonly ILogger<HouseReservationApiController> _logger;
     private readonly IMapper _mapper;
     private readonly IHouseRepository _houseRepository;
+    protected APIResponse apiResponse;
 
     public HouseReservationApiController(ILogger<HouseReservationApiController> logger,
         IHouseRepository houseRepository, IMapper mapper)
@@ -28,15 +30,18 @@ public class HouseReservationApiController : ControllerBase
         _mapper = mapper;
         _logger = logger;
         _houseRepository = houseRepository;
+        apiResponse = new APIResponse();
     }
     
     
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task <ActionResult<IEnumerable<HouseDto>>> GetHousesAsync()
+    public async Task <ActionResult<APIResponse>> GetHousesAsync()
     {
         IEnumerable<House> houses = await _houseRepository.GetAllAsync();
-        return Ok(_mapper.Map<List<HouseDto>>(houses));
+        apiResponse.Result = _mapper.Map<List<HouseDto>>(houses);
+        apiResponse.StatusCode = HttpStatusCode.OK;
+        return Ok(apiResponse);
     }
 
 
@@ -46,7 +51,7 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task <ActionResult<HouseDto>> GetHouseAsync(int id)
+    public async Task <ActionResult<APIResponse>> GetHouseAsync(int id)
     {
         var house = await _houseRepository.GetAsync(u => u.Id == id);
         if (id == 0)
@@ -57,12 +62,12 @@ public class HouseReservationApiController : ControllerBase
 
         if (house == null)
         {
-            _logger.LogError("Getting house with id: {Id} failed - Not Found", id);
+            _logger.LogError("Getting house with id: {Id} failed", id);
             return NotFound();
         }
-
-        ;
-        return Ok(_mapper.Map<HouseDto>(house));
+        apiResponse.Result = _mapper.Map<HouseDto>(house);
+        apiResponse.StatusCode = HttpStatusCode.OK;
+        return Ok(apiResponse);
     }
 
 
@@ -72,7 +77,7 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<HouseDto>> CreateHouseAsync([FromBody] HouseCreateDto houseCreateDto)
+    public async Task<ActionResult<APIResponse>> CreateHouseAsync([FromBody] HouseCreateDto houseCreateDto)
     {
         if (await _houseRepository.GetAsync(u => u.Name.ToLower() == houseCreateDto.Name.ToLower()) != null)
         {
@@ -84,10 +89,12 @@ public class HouseReservationApiController : ControllerBase
         {
             return BadRequest(houseCreateDto);
         }
-        House modelHouse = _mapper.Map<House>(houseCreateDto);
-        await _houseRepository.CreateAsync(modelHouse);
+        House house = _mapper.Map<House>(houseCreateDto);
+        await _houseRepository.CreateAsync(house);
+        apiResponse.Result = _mapper.Map<HouseDto>(house);
+        apiResponse.StatusCode = HttpStatusCode.Created;
 
-        return CreatedAtRoute("GetHouse", new { id = modelHouse.Id }, modelHouse);
+        return CreatedAtRoute("GetHouse", new { id = house.Id }, apiResponse);
     }
 
 
@@ -97,7 +104,7 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [HttpDelete("{id:int}", Name = "DeleteHouse")]
-    public async Task <IActionResult> DeleteHouse(int id)
+    public async Task <ActionResult<APIResponse>> DeleteHouse(int id)
     {
         if (id == 0)
         {
@@ -110,7 +117,9 @@ public class HouseReservationApiController : ControllerBase
             return NotFound();
         }
         await _houseRepository.DeleteAsync(house);
-        return NoContent();
+        apiResponse.StatusCode = HttpStatusCode.NoContent;
+        apiResponse.IsSuccess = true;
+        return Ok(apiResponse);
     }
 
 
@@ -119,17 +128,18 @@ public class HouseReservationApiController : ControllerBase
     [HttpPut("{id:int}", Name = "UpdateHouse")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UpdateHouse(int id, [FromBody] HouseUpdateDto houseUpdateDto)
+    public async Task<ActionResult<APIResponse>> UpdateHouse(int id, [FromBody] HouseUpdateDto houseUpdateDto)
     {
         if (houseUpdateDto == null || id != houseUpdateDto.Id)
         {
             return BadRequest();
         }
+        House house = _mapper.Map<House>(houseUpdateDto);
 
-        House modelHouse = _mapper.Map<House>(houseUpdateDto);
-
-        await _houseRepository.UpdateAsync(modelHouse);
-        return NoContent();
+        await _houseRepository.UpdateAsync(house);
+        apiResponse.StatusCode = HttpStatusCode.NoContent;
+        apiResponse.IsSuccess = true;
+        return Ok(apiResponse);
     }
 
 
@@ -138,7 +148,7 @@ public class HouseReservationApiController : ControllerBase
     [HttpPatch("{id:int}", Name = "UpdatePartialHouse")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UpdatePartialHouse(int id, JsonPatchDocument<HouseUpdateDto> patchDto)
+    public async Task<ActionResult<APIResponse>> UpdatePartialHouse(int id, JsonPatchDocument<HouseUpdateDto> patchDto)
     {
         if (patchDto == null || id == 0)
         {
@@ -146,19 +156,20 @@ public class HouseReservationApiController : ControllerBase
         }
 
         var house = await _houseRepository.GetAsync(u => u.Id == id, isTracked:false);
-        var modelHouseDto = _mapper.Map<HouseUpdateDto>(house);
+        var houseDto = _mapper.Map<HouseUpdateDto>(house);
 
         if (house == null)
         {
             return BadRequest();
         }
-        patchDto.ApplyTo(modelHouseDto, ModelState);
+        patchDto.ApplyTo(houseDto, ModelState);
 
-        var modelHouse = _mapper.Map<House>(modelHouseDto);
+        var modelHouse = _mapper.Map<House>(houseDto);
 
         await _houseRepository.UpdateAsync(modelHouse);
-
-        return NoContent();
+        apiResponse.StatusCode = HttpStatusCode.NoContent;
+        apiResponse.IsSuccess = true;
+        return Ok(apiResponse);
     }
     
     
