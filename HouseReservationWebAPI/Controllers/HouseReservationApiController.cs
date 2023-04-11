@@ -57,13 +57,15 @@ public class HouseReservationApiController : ControllerBase
         if (id == 0)
         {
             _logger.LogError("Getting house with id: {Id} failed", id);
-            return BadRequest();
+            apiResponse.IsSuccess = false;
+            return BadRequest(apiResponse);
         }
 
         if (house == null)
         {
             _logger.LogError("Getting house with id: {Id} failed", id);
-            return NotFound();
+            apiResponse.IsSuccess = false;
+            return BadRequest(apiResponse);
         }
         apiResponse.Result = _mapper.Map<HouseDto>(house);
         apiResponse.StatusCode = HttpStatusCode.OK;
@@ -82,12 +84,14 @@ public class HouseReservationApiController : ControllerBase
         if (await _houseRepository.GetAsync(u => u.Name.ToLower() == houseCreateDto.Name.ToLower()) != null)
         {
             ModelState.AddModelError("AlreadyExistsError", "House with that name already exists!");
-            return BadRequest(ModelState);
+            apiResponse.IsSuccess = false;
+            return BadRequest(apiResponse);
         }
 
         if (houseCreateDto == null)
         {
-            return BadRequest(houseCreateDto);
+            apiResponse.IsSuccess = false;
+            return BadRequest(apiResponse);
         }
         House house = _mapper.Map<House>(houseCreateDto);
         await _houseRepository.CreateAsync(house);
@@ -108,17 +112,18 @@ public class HouseReservationApiController : ControllerBase
     {
         if (id == 0)
         {
-            return BadRequest();
+            apiResponse.IsSuccess = false;
+            return BadRequest(apiResponse);
         }
 
         var house = await _houseRepository.GetAsync(u => u.Id == id);
         if (house == null)
         {
-            return NotFound();
+            apiResponse.IsSuccess = false;
+            return NotFound(apiResponse);
         }
         await _houseRepository.DeleteAsync(house);
         apiResponse.StatusCode = HttpStatusCode.NoContent;
-        apiResponse.IsSuccess = true;
         return Ok(apiResponse);
     }
 
@@ -132,13 +137,13 @@ public class HouseReservationApiController : ControllerBase
     {
         if (houseUpdateDto == null || id != houseUpdateDto.Id)
         {
-            return BadRequest();
+            apiResponse.IsSuccess = false;
+            return BadRequest(apiResponse);
         }
         House house = _mapper.Map<House>(houseUpdateDto);
 
         await _houseRepository.UpdateAsync(house);
         apiResponse.StatusCode = HttpStatusCode.NoContent;
-        apiResponse.IsSuccess = true;
         return Ok(apiResponse);
     }
 
@@ -152,7 +157,8 @@ public class HouseReservationApiController : ControllerBase
     {
         if (patchDto == null || id == 0)
         {
-            return BadRequest();
+            apiResponse.IsSuccess = false;
+            return BadRequest(apiResponse);
         }
 
         var house = await _houseRepository.GetAsync(u => u.Id == id, isTracked:false);
@@ -160,7 +166,8 @@ public class HouseReservationApiController : ControllerBase
 
         if (house == null)
         {
-            return BadRequest();
+            apiResponse.IsSuccess = false;
+            return BadRequest(apiResponse);
         }
         patchDto.ApplyTo(houseDto, ModelState);
 
@@ -168,7 +175,6 @@ public class HouseReservationApiController : ControllerBase
 
         await _houseRepository.UpdateAsync(modelHouse);
         apiResponse.StatusCode = HttpStatusCode.NoContent;
-        apiResponse.IsSuccess = true;
         return Ok(apiResponse);
     }
     
