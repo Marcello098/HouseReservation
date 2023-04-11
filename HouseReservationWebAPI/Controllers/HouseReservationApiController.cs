@@ -6,6 +6,7 @@ using AutoMapper;
 using HouseReservationWebAPI.Data;
 using HouseReservationWebAPI.Models;
 using HouseReservationWebAPI.Models.DTO;
+using HouseReservationWebAPI.Repository.IRepository;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
@@ -17,16 +18,16 @@ namespace HouseReservationWebAPI.Controllers;
 [ApiController]
 public class HouseReservationApiController : ControllerBase
 {
-    private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<HouseReservationApiController> _logger;
     private readonly IMapper _mapper;
+    private readonly IHouseRepository _houseRepository;
 
-    public HouseReservationApiController(ILogger<HouseReservationApiController> logger, 
-        ApplicationDbContext dbContext, IMapper mapper)
+    public HouseReservationApiController(ILogger<HouseReservationApiController> logger,
+        IHouseRepository houseRepository, IMapper mapper)
     {
         _mapper = mapper;
         _logger = logger;
-        _dbContext = dbContext;
+        _houseRepository = houseRepository;
     }
     
     
@@ -34,7 +35,7 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task <ActionResult<IEnumerable<HouseDto>>> GetHousesAsync()
     {
-        IEnumerable<House> houses = await _dbContext.Houses.ToListAsync();
+        IEnumerable<House> houses = await _houseRepository.GetAllAsync();
         return Ok(_mapper.Map<List<HouseDto>>(houses));
     }
 
@@ -47,7 +48,7 @@ public class HouseReservationApiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task <ActionResult<HouseDto>> GetHouseAsync(int id)
     {
-        var house = await _dbContext.Houses.FirstOrDefaultAsync(u => u.Id == id);
+        var house = await _houseRepository.GetAsync(u => u.Id == id);
         if (id == 0)
         {
             _logger.LogError("Getting house with id: {Id} failed", id);
@@ -68,12 +69,12 @@ public class HouseReservationApiController : ControllerBase
 
 
     [HttpPost]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<HouseDto>> CreateHouseAsync([FromBody] HouseCreateDto houseCreateDto)
     {
-        if (await _dbContext.Houses.FirstOrDefaultAsync(u => u.Name.ToLower() == houseCreateDto.Name.ToLower()) != null)
+        if (await _houseRepository.GetAsync(u => u.Name.ToLower() == houseCreateDto.Name.ToLower()) != null)
         {
             ModelState.AddModelError("AlreadyExistsError", "House with that name already exists!");
             return BadRequest(ModelState);
@@ -84,8 +85,7 @@ public class HouseReservationApiController : ControllerBase
             return BadRequest(houseCreateDto);
         }
         House modelHouse = _mapper.Map<House>(houseCreateDto);
-        await _dbContext.Houses.AddAsync(modelHouse);
-        await _dbContext.SaveChangesAsync();
+        await _houseRepository.CreateAsync(modelHouse);
 
         return CreatedAtRoute("GetHouse", new { id = modelHouse.Id }, modelHouse);
     }
@@ -104,14 +104,12 @@ public class HouseReservationApiController : ControllerBase
             return BadRequest();
         }
 
-        var house = await _dbContext.Houses.FirstOrDefaultAsync(u => u.Id == id);
+        var house = await _houseRepository.GetAsync(u => u.Id == id);
         if (house == null)
         {
             return NotFound();
         }
-
-        _dbContext.Houses.Remove(house);
-        await _dbContext.SaveChangesAsync();
+        await _houseRepository.DeleteAsync(house);
         return NoContent();
     }
 
@@ -130,8 +128,7 @@ public class HouseReservationApiController : ControllerBase
 
         House modelHouse = _mapper.Map<House>(houseUpdateDto);
 
-        _dbContext.Update(modelHouse);
-        await _dbContext.SaveChangesAsync();
+        await _houseRepository.UpdateAsync(modelHouse);
         return NoContent();
     }
 
@@ -148,7 +145,7 @@ public class HouseReservationApiController : ControllerBase
             return BadRequest();
         }
 
-        var house = await _dbContext.Houses.AsNoTracking().FirstOrDefaultAsync( u => u.Id == id);
+        var house = await _houseRepository.GetAsync(u => u.Id == id, isTracked:false);
         var modelHouseDto = _mapper.Map<HouseUpdateDto>(house);
 
         if (house == null)
@@ -159,8 +156,7 @@ public class HouseReservationApiController : ControllerBase
 
         var modelHouse = _mapper.Map<House>(modelHouseDto);
 
-        _dbContext.Houses.Update(modelHouse);
-        await _dbContext.SaveChangesAsync();
+        await _houseRepository.UpdateAsync(modelHouse);
 
         return NoContent();
     }

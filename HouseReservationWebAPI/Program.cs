@@ -1,5 +1,7 @@
 using HouseReservationWebAPI;
 using HouseReservationWebAPI.Data;
+using HouseReservationWebAPI.Repository;
+using HouseReservationWebAPI.Repository.IRepository;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -11,6 +13,9 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.File("log/house_reservation_logs.txt", rollingInterval: RollingInterval.Month)
     .CreateLogger();
 builder.Host.UseSerilog();
+
+// Repository 
+builder.Services.AddScoped<IHouseRepository, HouseRepository>();
 
 // AutoMapper
 builder.Services.AddAutoMapper(typeof(MappingConfiguration));
